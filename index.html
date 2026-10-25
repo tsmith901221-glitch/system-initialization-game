@@ -1,0 +1,695 @@
+```html
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>System Initialization: The Unchained Class 3D</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Three.js CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <!-- Lucide Icons CDN -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;600;700&family=Inter:wght@400;600;800&display=swap');
+        
+        body {
+            font-family: 'Fira Code', monospace;
+            background-color: #030712;
+            color: #f3f4f6;
+            overflow: hidden;
+            touch-action: manipulation;
+            user-select: none;
+            -webkit-user-select: none;
+        }
+
+        .hud-font {
+            font-family: 'Inter', sans-serif;
+        }
+
+        /* Custom Scrollbar for LitRPG Log */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(15, 23, 42, 0.6);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(59, 130, 246, 0.5);
+            border-radius: 2px;
+        }
+
+        /* Neon Glow Effects */
+        .glow-blue {
+            text-shadow: 0 0 10px rgba(59, 130, 246, 0.8), 0 0 20px rgba(59, 130, 246, 0.4);
+        }
+        .glow-purple {
+            text-shadow: 0 0 10px rgba(168, 85, 247, 0.8), 0 0 20px rgba(168, 85, 247, 0.4);
+        }
+        .glow-emerald {
+            text-shadow: 0 0 10px rgba(16, 185, 129, 0.8), 0 0 20px rgba(16, 185, 129, 0.4);
+        }
+        
+        .box-glow-blue {
+            box-shadow: 0 0 15px rgba(59, 130, 246, 0.25), inset 0 0 15px rgba(59, 130, 246, 0.1);
+            border: 1px solid rgba(59, 130, 246, 0.4);
+        }
+        
+        .box-glow-purple {
+            box-shadow: 0 0 15px rgba(168, 85, 247, 0.3), inset 0 0 15px rgba(168, 85, 247, 0.15);
+            border: 1px solid rgba(168, 85, 247, 0.5);
+        }
+
+        /* Screen Flash Animations */
+        @keyframes toxicFlash {
+            0% { background-color: rgba(16, 185, 129, 0); }
+            30% { background-color: rgba(16, 185, 129, 0.35); }
+            100% { background-color: rgba(16, 185, 129, 0); }
+        }
+
+        @keyframes damageFlash {
+            0% { background-color: rgba(239, 68, 68, 0); }
+            30% { background-color: rgba(239, 68, 68, 0.4); }
+            100% { background-color: rgba(239, 68, 68, 0); }
+        }
+
+        .flash-toxic {
+            animation: toxicFlash 0.6s ease-out forwards;
+        }
+
+        .flash-damage {
+            animation: damageFlash 0.5s ease-out forwards;
+        }
+
+        /* Scanline Overlay */
+        .scanline {
+            background: linear-gradient(
+                to bottom,
+                rgba(255,255,255,0),
+                rgba(255,255,255,0) 50%,
+                rgba(0, 0, 0, 0.3) 50%,
+                rgba(0, 0, 0, 0.3)
+            );
+            background-size: 100% 4px;
+        }
+    </style>
+</head>
+<body class="w-full h-screen relative overflow-hidden select-none">
+
+    <!-- 3D Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 w-full h-full z-0"></div>
+
+    <!-- Retro Overlay FX -->
+    <div id="flash-overlay" class="absolute inset-0 pointer-events-none z-10"></div>
+    <div class="absolute inset-0 pointer-events-none z-10 scanline opacity-40"></div>
+
+    <!-- UI HUD Overlay (2D Layer) -->
+    <div class="absolute inset-0 z-20 flex flex-col justify-between p-3 sm:p-5 pointer-events-none">
+        
+        <!-- TOP HUD: Player Stats Sheet -->
+        <div class="w-full max-w-lg mx-auto pointer-events-auto">
+            <div class="box-glow-blue bg-slate-950/85 backdrop-blur-md rounded-xl p-3 sm:p-4 text-xs sm:text-sm">
+                
+                <!-- Player Name & Level Header -->
+                <div class="flex justify-between items-center pb-2 border-b border-slate-800">
+                    <div class="flex items-center space-x-2">
+                        <i data-lucide="shield" class="w-4 h-4 text-blue-400"></i>
+                        <span class="font-bold tracking-wider text-blue-400 glow-blue hud-font">MARCUS VANCE</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <span class="text-slate-400 text-xs">LVL</span>
+                        <span class="font-bold text-amber-400 hud-font text-sm" id="level-val">1</span>
+                        <span class="text-xs text-slate-500">(<span id="exp-val">0</span>/100 EXP)</span>
+                    </div>
+                </div>
+
+                <!-- Class Title & Active Buff Status -->
+                <div class="flex justify-between items-center my-2">
+                    <div class="flex items-center space-x-1.5">
+                        <span class="text-slate-400">Class:</span>
+                        <span class="text-purple-400 font-bold glow-purple hud-font" id="class-title">Void Siphon (Unique)</span>
+                    </div>
+                    <div id="siphon-indicator" class="flex items-center space-x-1 text-emerald-400 text-xs animate-pulse">
+                        <i data-lucide="zap" class="w-3 h-3"></i>
+                        <span class="font-bold" id="siphon-status">SIPHON ACTIVE (+3 VIG)</span>
+                    </div>
+                </div>
+
+                <!-- HP & MP Bars -->
+                <div class="space-y-1.5 my-2">
+                    <!-- HP Bar -->
+                    <div class="space-y-0.5">
+                        <div class="flex justify-between text-[11px] text-slate-300">
+                            <span class="font-semibold flex items-center gap-1"><i data-lucide="heart" class="w-3 h-3 text-red-400"></i> HP</span>
+                            <span id="hp-text" class="font-bold">110/110</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                            <div id="hp-bar" class="h-full bg-gradient-to-r from-red-600 to-emerald-500 w-full transition-all duration-300"></div>
+                        </div>
+                    </div>
+                    <!-- MP Bar -->
+                    <div class="space-y-0.5">
+                        <div class="flex justify-between text-[11px] text-slate-300">
+                            <span class="font-semibold flex items-center gap-1"><i data-lucide="droplet" class="w-3 h-3 text-blue-400"></i> MP</span>
+                            <span id="mp-text" class="font-bold">144/144</span>
+                        </div>
+                        <div class="w-full h-2 bg-slate-900 rounded-full overflow-hidden border border-slate-800">
+                            <div id="mp-bar" class="h-full bg-gradient-to-r from-blue-600 to-cyan-400 w-full transition-all duration-300"></div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Primary Attributes Grid -->
+                <div class="grid grid-cols-4 gap-2 pt-2 border-t border-slate-800 text-center text-[11px]">
+                    <div class="bg-slate-900/80 p-1 rounded border border-slate-800/80">
+                        <div class="text-slate-400 text-[10px]">VIG</div>
+                        <div class="font-bold text-emerald-400" id="vig-val">11</div>
+                    </div>
+                    <div class="bg-slate-900/80 p-1 rounded border border-slate-800/80">
+                        <div class="text-slate-400 text-[10px]">MGT</div>
+                        <div class="font-bold text-red-400" id="mgt-val">9</div>
+                    </div>
+                    <div class="bg-slate-900/80 p-1 rounded border border-slate-800/80">
+                        <div class="text-slate-400 text-[10px]">AGI</div>
+                        <div class="font-bold text-amber-400" id="agi-val">9</div>
+                    </div>
+                    <div class="bg-slate-900/80 p-1 rounded border border-slate-800/80">
+                        <div class="text-slate-400 text-[10px]">WIL</div>
+                        <div class="font-bold text-purple-400" id="wil-val">14</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- CENTER AREA: Optional Camera Gesture Hint / Visual Space -->
+        <div class="flex-grow flex items-center justify-center pointer-events-none">
+            <div id="target-hud" class="hidden sm:flex flex-col items-center opacity-70 transition-opacity duration-500">
+                <div class="w-24 h-24 border border-blue-500/30 rounded-full flex items-center justify-center relative animate-pulse">
+                    <div class="w-16 h-16 border border-purple-500/40 rounded-full"></div>
+                    <div class="w-2 h-2 bg-blue-400 rounded-full absolute"></div>
+                </div>
+                <span class="text-[10px] text-blue-400/80 tracking-widest mt-2 uppercase">Target Lock: Miasmic Hound [Lvl 3]</span>
+            </div>
+        </div>
+
+        <!-- BOTTOM HUD: Combat Log & Interactive Action Panel -->
+        <div class="w-full max-w-lg mx-auto space-y-2 pointer-events-auto">
+            
+            <!-- LitRPG System Narrative Log -->
+            <div class="box-glow-blue bg-slate-950/90 backdrop-blur-md rounded-xl p-3 h-32 sm:h-36 overflow-y-auto text-xs space-y-2 border border-blue-900/40" id="system-log">
+                <div class="text-blue-400 font-bold flex items-center gap-1 glow-blue">
+                    <i data-lucide="terminal" class="w-3.5 h-3.5"></i>
+                    <span>[SYSTEM INITIALIZATION LOG]</span>
+                </div>
+                <div class="text-slate-300 leading-relaxed">
+                    Planetary Integration active. You are trapped in Server Room 4B. A <span class="text-red-400 font-semibold">Miasmic Hound [Level 3]</span> has broken through the primary security breach!
+                </div>
+                <div class="text-purple-300 leading-relaxed bg-purple-950/30 p-1.5 rounded border border-purple-900/30">
+                    <i data-lucide="sparkles" class="w-3 h-3 inline mr-1 text-purple-400"></i>
+                    <span class="font-semibold text-purple-400">Passive Trigger:</span> Toxic Miasma detected. <span class="text-emerald-400">[Void Siphon]</span> converting environmental decay into stat resilience.
+                </div>
+            </div>
+
+            <!-- Choice Action Buttons -->
+            <div class="grid grid-cols-1 gap-2" id="action-panel">
+                <button onclick="handleAction('A')" class="w-full text-left p-2.5 sm:p-3 box-glow-blue bg-slate-900/90 hover:bg-blue-950/80 active:scale-[0.98] rounded-xl text-xs sm:text-sm text-blue-200 transition flex items-start space-x-2 group">
+                    <span class="bg-blue-600/30 text-blue-400 px-2 py-0.5 rounded font-bold border border-blue-500/30 group-hover:bg-blue-500 group-hover:text-white transition">A</span>
+                    <span class="flex-1 leading-snug"><b>Heavy Door Counter:</b> Kick the steel frame to stagger the charging hound (+Might bonus).</span>
+                </button>
+                
+                <button onclick="handleAction('B')" class="w-full text-left p-2.5 sm:p-3 box-glow-purple bg-slate-900/90 hover:bg-purple-950/80 active:scale-[0.98] rounded-xl text-xs sm:text-sm text-purple-200 transition flex items-start space-x-2 group">
+                    <span class="bg-purple-600/30 text-purple-400 px-2 py-0.5 rounded font-bold border border-purple-500/30 group-hover:bg-purple-500 group-hover:text-white transition">B</span>
+                    <span class="flex-1 leading-snug"><b>Siphon Tank:</b> Deliberately absorb the hound's toxic bite to trigger a permanent stat conversion.</span>
+                </button>
+                
+                <button onclick="handleAction('C')" class="w-full text-left p-2.5 sm:p-3 box-glow-blue bg-slate-900/90 hover:bg-emerald-950/80 active:scale-[0.98] rounded-xl text-xs sm:text-sm text-emerald-200 transition flex items-start space-x-2 group">
+                    <span class="bg-emerald-600/30 text-emerald-400 px-2 py-0.5 rounded font-bold border border-emerald-500/30 group-hover:bg-emerald-500 group-hover:text-white transition">C</span>
+                    <span class="flex-1 leading-snug"><b>Tactical Escape:</b> Vault over the server racks into the ceiling vent to flank the creature.</span>
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MAIN GAME SCRIPT -->
+    <script>
+        // --- GAME STATE DATA ---
+        const gameState = {
+            player: {
+                name: 'Marcus Vance',
+                level: 1,
+                exp: 0,
+                maxHp: 110,
+                hp: 110,
+                maxMp: 144,
+                mp: 144,
+                vig: 11,
+                mgt: 9,
+                agi: 9,
+                wil: 14,
+                siphonStacks: 1,
+                turn: 1
+            },
+            monster: {
+                name: 'Miasmic Hound',
+                level: 3,
+                hp: 120,
+                maxHp: 120,
+                isStaggered: false
+            }
+        };
+
+        // --- THREE.JS GRAPHICS SETUP ---
+        let scene, camera, renderer;
+        let monsterGroup, eyesLight, serverLights = [];
+        let miasmaParticles, glyphParticles;
+        let cameraBasePos = { x: 0, y: 1.6, z: 4.5 };
+        let clock = new THREE.Clock();
+
+        function init3D() {
+            const container = document.getElementById('canvas-container');
+
+            // 1. Scene Setup
+            scene = new THREE.Scene();
+            scene.background = new THREE.Color(0x030712);
+            scene.fog = new THREE.FogExp2(0x030712, 0.12);
+
+            // 2. Camera Setup
+            camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(cameraBasePos.x, cameraBasePos.y, cameraBasePos.z);
+
+            // 3. Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.shadowMap.enabled = true;
+            renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+            container.appendChild(renderer.domElement);
+
+            // 4. Lighting Environment
+            const ambientLight = new THREE.AmbientLight(0x0f172a, 1.2);
+            scene.add(ambientLight);
+
+            // Center Point Light (Cyan/Blue Sci-fi Corridor glow)
+            const corridorLight = new THREE.PointLight(0x3b82f6, 2, 12);
+            corridorLight.position.set(0, 3, 0);
+            scene.add(corridorLight);
+
+            // Red Emergency Warning Light near door/back
+            const emergencyLight = new THREE.PointLight(0xef4444, 1.5, 10);
+            emergencyLight.position.set(0, 2.5, -6);
+            scene.add(emergencyLight);
+
+            // 5. Build Environment (Futuristic Corridor / Server Room)
+            buildCorridor();
+
+            // 6. Build Low-Poly Monster (Miasmic Hound)
+            buildMonster();
+
+            // 7. Particle Systems (Toxic Miasma + LitRPG Floating Glyphs)
+            createParticleSystems();
+
+            // 8. Event Listeners
+            window.addEventListener('resize', onWindowResize);
+            
+            // Touch/Mouse Interactive Tilt Effect
+            window.addEventListener('mousemove', (e) => {
+                const mouseX = (e.clientX / window.innerWidth - 0.5) * 0.4;
+                const mouseY = (e.clientY / window.innerHeight - 0.5) * 0.3;
+                camera.position.x = cameraBasePos.x + mouseX;
+                camera.position.y = cameraBasePos.y - mouseY;
+            });
+
+            // Start Animation Loop
+            animate();
+        }
+
+        // --- ENVIRONMENT GENERATOR ---
+        function buildCorridor() {
+            // Floor (Dark Metallic Panels)
+            const floorGeo = new THREE.PlaneGeometry(8, 20);
+            const floorMat = new THREE.MeshStandardMaterial({ 
+                color: 0x090d16, 
+                roughness: 0.3, 
+                metalness: 0.8 
+            });
+            const floor = new THREE.Mesh(floorGeo, floorMat);
+            floor.rotation.x = -Math.PI / 2;
+            floor.position.z = -5;
+            scene.add(floor);
+
+            // Ceiling
+            const ceiling = floor.clone();
+            ceiling.position.y = 4;
+            ceiling.rotation.x = Math.PI / 2;
+            scene.add(ceiling);
+
+            // Server Racks Along Walls
+            const rackGeo = new THREE.BoxGeometry(1.2, 3.5, 1.5);
+            const rackMat = new THREE.MeshStandardMaterial({ color: 0x1e293b, roughness: 0.5, metalness: 0.5 });
+            
+            const serverNodeGeo = new THREE.BoxGeometry(1.0, 0.2, 1.3);
+            const serverGlowMat = new THREE.MeshBasicMaterial({ color: 0x3b82f6 });
+
+            for (let z = 2; z >= -12; z -= 2.5) {
+                // Left Server Unit
+                const leftRack = new THREE.Mesh(rackGeo, rackMat);
+                leftRack.position.set(-2.8, 1.75, z);
+                scene.add(leftRack);
+
+                // Right Server Unit
+                const rightRack = new THREE.Mesh(rackGeo, rackMat);
+                rightRack.position.set(2.8, 1.75, z);
+                scene.add(rightRack);
+
+                // Add glowing server light strips
+                for (let y = 0.5; y < 3.2; y += 0.6) {
+                    const blinkLight = new THREE.Mesh(serverNodeGeo, Math.random() > 0.4 ? serverGlowMat : new THREE.MeshBasicMaterial({ color: 0xa855f7 }));
+                    blinkLight.position.set(-2.7, y, z);
+                    scene.add(blinkLight);
+
+                    const blinkLightR = blinkLight.clone();
+                    blinkLightR.position.x = 2.7;
+                    scene.add(blinkLightR);
+                    serverLights.push(blinkLight, blinkLightR);
+                }
+            }
+
+            // Reinforced Steel Door Frame at back
+            const doorFrameGeo = new THREE.BoxGeometry(3, 3.5, 0.2);
+            const doorMat = new THREE.MeshStandardMaterial({ color: 0x334155, metalness: 0.9, roughness: 0.2 });
+            const door = new THREE.Mesh(doorFrameGeo, doorMat);
+            door.position.set(0, 1.75, -8);
+            scene.add(door);
+        }
+
+        // --- MONSTER MODEL (MIASMIC HOUND) ---
+        function buildMonster() {
+            monsterGroup = new THREE.Group();
+
+            // Body (Low-poly predatory hound frame)
+            const bodyGeo = new THREE.ConeGeometry(0.7, 2, 5);
+            const bodyMat = new THREE.MeshStandardMaterial({ 
+                color: 0x111827, 
+                roughness: 0.6,
+                flatShading: true
+            });
+            const body = new THREE.Mesh(bodyGeo, bodyMat);
+            body.rotation.x = Math.PI / 2.5;
+            body.position.set(0, 0.9, 0);
+            monsterGroup.add(body);
+
+            // Head & Spikes
+            const headGeo = new THREE.IcosahedronGeometry(0.45, 0);
+            const headMat = new THREE.MeshStandardMaterial({ color: 0x1f2937, flatShading: true });
+            const head = new THREE.Mesh(headGeo, headMat);
+            head.position.set(0, 1.2, 0.9);
+            monsterGroup.add(head);
+
+            // Glowing Purple Eyes (Miasmic Fissures)
+            const eyeGeo = new THREE.SphereGeometry(0.08, 8, 8);
+            const eyeMat = new THREE.MeshBasicMaterial({ color: 0xa855f7 });
+            
+            const leftEye = new THREE.Mesh(eyeGeo, eyeMat);
+            leftEye.position.set(-0.18, 1.28, 1.25);
+            
+            const rightEye = new THREE.Mesh(eyeGeo, eyeMat);
+            rightEye.position.set(0.18, 1.28, 1.25);
+
+            monsterGroup.add(leftEye, rightEye);
+
+            // Spine Crystal Spikes (Purple toxic nodes)
+            const spikeGeo = new THREE.ConeGeometry(0.12, 0.6, 4);
+            const spikeMat = new THREE.MeshBasicMaterial({ color: 0x8b5cf6 });
+
+            for(let i = 0; i < 4; i++) {
+                const spike = new THREE.Mesh(spikeGeo, spikeMat);
+                spike.position.set(0, 1.2 + (i * 0.1), -0.2 - (i * 0.3));
+                spike.rotation.x = -Math.PI / 4;
+                monsterGroup.add(spike);
+            }
+
+            // Position Monster in Room
+            monsterGroup.position.set(0, 0, -3.5);
+            scene.add(monsterGroup);
+        }
+
+        // --- PARTICLE SYSTEMS ---
+        function createParticleSystems() {
+            // 1. Toxic Green Miasma Fog Particles
+            const miasmaCount = 120;
+            const miasmaGeo = new THREE.BufferGeometry();
+            const miasmaPositions = new Float32Array(miasmaCount * 3);
+
+            for (let i = 0; i < miasmaCount * 3; i += 3) {
+                miasmaPositions[i] = (Math.random() - 0.5) * 6;
+                miasmaPositions[i + 1] = Math.random() * 3;
+                miasmaPositions[i + 2] = (Math.random() - 0.5) * 10;
+            }
+
+            miasmaGeo.setAttribute('position', new THREE.BufferAttribute(miasmaPositions, 3));
+            const miasmaMat = new THREE.PointsMaterial({
+                color: 0x10b981,
+                size: 0.12,
+                transparent: true,
+                opacity: 0.6
+            });
+
+            miasmaParticles = new THREE.Points(miasmaGeo, miasmaMat);
+            scene.add(miasmaParticles);
+
+            // 2. Glowing Blue LitRPG System Data Glyphs
+            const glyphCount = 60;
+            const glyphGeo = new THREE.BufferGeometry();
+            const glyphPositions = new Float32Array(glyphCount * 3);
+
+            for (let i = 0; i < glyphCount * 3; i += 3) {
+                glyphPositions[i] = (Math.random() - 0.5) * 5;
+                glyphPositions[i + 1] = Math.random() * 3.5;
+                glyphPositions[i + 2] = (Math.random() - 0.5) * 8;
+            }
+
+            glyphGeo.setAttribute('position', new THREE.BufferAttribute(glyphPositions, 3));
+            const glyphMat = new THREE.PointsMaterial({
+                color: 0x3b82f6,
+                size: 0.08,
+                transparent: true,
+                opacity: 0.85
+            });
+
+            glyphParticles = new THREE.Points(glyphGeo, glyphMat);
+            scene.add(glyphParticles);
+        }
+
+        // --- ANIMATION LOOP ---
+        function animate() {
+            requestAnimationFrame(animate);
+
+            const elapsedTime = clock.getElapsedTime();
+
+            // Idle Breath / Growl Animation for Monster
+            if (monsterGroup) {
+                monsterGroup.position.y = Math.sin(elapsedTime * 3) * 0.08;
+                monsterGroup.rotation.y = Math.sin(elapsedTime * 1.5) * 0.05;
+            }
+
+            // Animate Server Lights flickering
+            serverLights.forEach((light, idx) => {
+                if (Math.random() > 0.98) {
+                    light.visible = !light.visible;
+                }
+            });
+
+            // Float Toxic Miasma & System Glyphs
+            if (miasmaParticles) {
+                const positions = miasmaParticles.geometry.attributes.position.array;
+                for (let i = 1; i < positions.length; i += 3) {
+                    positions[i] += Math.sin(elapsedTime + i) * 0.003;
+                    if (positions[i] > 3.5) positions[i] = 0.2;
+                }
+                miasmaParticles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            if (glyphParticles) {
+                const glyphPos = glyphParticles.geometry.attributes.position.array;
+                for (let i = 1; i < glyphPos.length; i += 3) {
+                    glyphPos[i] += 0.005;
+                    if (glyphPos[i] > 3.8) glyphPos[i] = 0.1;
+                }
+                glyphParticles.geometry.attributes.position.needsUpdate = true;
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // --- INTERACTIVE CHOICE LOGIC & VISUAL EFFECTS ---
+        function handleAction(choice) {
+            const log = document.getElementById('system-log');
+            const flash = document.getElementById('flash-overlay');
+
+            gameState.player.turn++;
+
+            if (choice === 'A') {
+                // CHOICE A: DOOR KICK COUNTER
+                triggerCameraShake();
+                triggerMonsterRecoil();
+
+                // Stats Update
+                gameState.player.exp += 35;
+                gameState.monster.hp -= 40;
+                
+                // Narrative Append
+                appendLog(`
+                    <div class="border-t border-slate-800 pt-2 mt-1">
+                        <span class="text-blue-400 font-bold">> ACTION: Steel Door Kick</span><br>
+                        <span>You slam your boot into the heavy door frame right as the beast lunges! The metallic shockwave crushes its snout, staggering it back.</span><br>
+                        <span class="text-emerald-400 font-semibold">+35 EXP | Monster Staggered! (-40 HP)</span>
+                    </div>
+                `);
+
+            } else if (choice === 'B') {
+                // CHOICE B: VOID SIPHON TANK
+                triggerToxicFlash();
+                
+                // Stat Conversion Siphon Logic
+                gameState.player.siphonStacks++;
+                gameState.player.vig += 2;
+                gameState.player.maxHp += 10;
+                gameState.player.hp = Math.min(gameState.player.hp + 15, gameState.player.maxHp);
+                gameState.player.exp += 50;
+
+                // Narrative Append
+                appendLog(`
+                    <div class="border-t border-slate-800 pt-2 mt-1 bg-purple-950/40 p-1.5 rounded">
+                        <span class="text-purple-400 font-bold">> ACTION: Void Siphon Absorption</span><br>
+                        <span>The hound bites deep into your shoulder, flooding your veins with deadly miasma! Your unique class activates: <span class="text-emerald-400">[Negative Status Converted]</span>.</span><br>
+                        <span class="text-purple-300 font-semibold">+2 Permanent VIG! HP Capacity expanded (+10 Max HP)!</span>
+                    </div>
+                `);
+
+            } else if (choice === 'C') {
+                // CHOICE C: VENTILATION ESCAPE
+                triggerCameraLunge();
+
+                gameState.player.agi += 1;
+                gameState.player.exp += 25;
+
+                appendLog(`
+                    <div class="border-t border-slate-800 pt-2 mt-1">
+                        <span class="text-emerald-400 font-bold">> ACTION: Vent Shaft Flank</span><br>
+                        <span>You spring off a server rack and wrench open the ceiling ventilation hatch, sliding into darkness just as jaws snap shut beneath you!</span><br>
+                        <span class="text-amber-400 font-semibold">+1 Agility gained! Tactical High Ground unlocked.</span>
+                    </div>
+                `);
+            }
+
+            // Check Level Up Condition
+            if (gameState.player.exp >= 100) {
+                gameState.player.level++;
+                gameState.player.exp -= 100;
+                gameState.player.wil += 2;
+                gameState.player.mgt += 2;
+                appendLog(`
+                    <div class="bg-amber-950/50 border border-amber-500/40 p-2 rounded text-amber-300 font-bold text-center glow-emerald my-1">
+                        ★ LEVEL UP! You are now Level ${gameState.player.level}! All stats increased.
+                    </div>
+                `);
+            }
+
+            // Update UI HUD Display
+            updateHUD();
+
+            // Next Scenario Options Check
+            if (gameState.player.turn >= 4) {
+                renderVictoryScreen();
+            }
+        }
+
+        // --- HUD UPDATER ---
+        function updateHUD() {
+            document.getElementById('level-val').innerText = gameState.player.level;
+            document.getElementById('exp-val').innerText = gameState.player.exp;
+            
+            document.getElementById('hp-text').innerText = `${gameState.player.hp}/${gameState.player.maxHp}`;
+            const hpPercent = (gameState.player.hp / gameState.player.maxHp) * 100;
+            document.getElementById('hp-bar').style.width = `${hpPercent}%`;
+
+            document.getElementById('vig-val').innerText = gameState.player.vig;
+            document.getElementById('mgt-val').innerText = gameState.player.mgt;
+            document.getElementById('agi-val').innerText = gameState.player.agi;
+            document.getElementById('wil-val').innerText = gameState.player.wil;
+
+            document.getElementById('siphon-status').innerText = `SIPHON STACKS (x${gameState.player.siphonStacks})`;
+        }
+
+        function appendLog(htmlContent) {
+            const log = document.getElementById('system-log');
+            log.innerHTML += htmlContent;
+            log.scrollTop = log.scrollHeight;
+        }
+
+        // --- SPECIAL VISUAL FX FUNCTIONS ---
+        function triggerCameraShake() {
+            let shakeTime = 0;
+            const interval = setInterval(() => {
+                camera.position.x = cameraBasePos.x + (Math.random() - 0.5) * 0.3;
+                camera.position.y = cameraBasePos.y + (Math.random() - 0.5) * 0.3;
+                shakeTime++;
+                if (shakeTime > 10) {
+                    clearInterval(interval);
+                    camera.position.set(cameraBasePos.x, cameraBasePos.y, cameraBasePos.z);
+                }
+            }, 30);
+        }
+
+        function triggerMonsterRecoil() {
+            if (!monsterGroup) return;
+            monsterGroup.position.z = -5.0;
+            setTimeout(() => {
+                monsterGroup.position.z = -3.5;
+            }, 300);
+        }
+
+        function triggerCameraLunge() {
+            camera.position.z = 2.5;
+            setTimeout(() => {
+                camera.position.z = cameraBasePos.z;
+            }, 400);
+        }
+
+        function triggerToxicFlash() {
+            const overlay = document.getElementById('flash-overlay');
+            overlay.className = 'absolute inset-0 pointer-events-none z-10 flash-toxic';
+            setTimeout(() => {
+                overlay.className = 'absolute inset-0 pointer-events-none z-10';
+            }, 600);
+        }
+
+        function renderVictoryScreen() {
+            const panel = document.getElementById('action-panel');
+            panel.innerHTML = `
+                <div class="box-glow-purple bg-purple-950/90 p-4 rounded-xl text-center space-y-2">
+                    <div class="text-purple-300 font-bold text-base glow-purple">STAGE 1 CLEAR: SERVER ROOM SECURED</div>
+                    <p class="text-xs text-slate-300">You have successfully neutralized the Miasmic Hound and initialized the Void Siphon core loop!</p>
+                    <button onclick="location.reload()" class="w-full bg-purple-600 hover:bg-purple-500 text-white font-bold py-2 rounded-lg text-xs mt-2 transition">
+                        RESTART SIMULATION
+                    </button>
+                </div>
+            `;
+        }
+
+        // --- ON INITIALIZATION ---
+        window.onload = function() {
+            init3D();
+            lucide.createIcons();
+        };
+    </script>
+</body>
+</html>
+```
